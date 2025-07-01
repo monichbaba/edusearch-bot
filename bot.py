@@ -5,7 +5,6 @@ import os
 # Bot token
 TOKEN = os.environ.get("TOKEN")
 
-
 # IDs
 CHANNEL_USERNAME = "@IcsCoach"
 GROUP_CHAT_ID = -1002549002656
