@@ -41,7 +41,7 @@ def save_and_add_button(chat_id, text, timestamp, is_group=False):
 
 # 🏷️ Tag Generator
 def generate_tags(text):
-    words = re.findall(r'\b\w+\b', text.lower())
+    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
     filtered = [w for w in words if w not in STOPWORDS]
     unique = list(dict.fromkeys(filtered))
     top5 = unique[:5]
@@ -68,27 +68,34 @@ def handle_group(m):
 def handle_search_button(c):
     bot.send_message(c.message.chat.id, "Sahab, aap kya search karna chahte hain? Type keyword(s):", reply_to_message_id=c.message.message_id)
 
-# Search Reply
-@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and m.reply_to_message and m.reply_to_message.from_user.is_bot)
+# Search Reply Handler
+@bot.message_handler(func=lambda m: (
+    m.chat.id == GROUP_CHAT_ID and m.text and
+    m.reply_to_message and
+    m.reply_to_message.from_user.is_bot and
+    "Sahab, aap kya search karna chahte hain?" in m.reply_to_message.text
+))
 def handle_search_reply(m):
-    if "Sahab, aap kya search karna chahte hain?" in m.reply_to_message.text:
-        keywords = m.text.strip().lower().split()
-        results = []
-        for doc in db.collection("messages").stream():
-            txt = doc.to_dict().get("text", "").lower()
-            if all(kw in txt for kw in keywords):
-                results.append(doc.to_dict().get("text"))
-                if len(results) >= 3:
-                    break
-        if results:
-            bot.reply_to(m, "🔍 Matches found:\n\n" + "\n\n".join(results), disable_notification=True)
-        else:
-            bot.reply_to(m, f"Kuch nahi mila for '{m.text}', sahab.", disable_notification=True)
+    keywords = m.text.strip().lower().split()
+    results = []
+    for doc in db.collection("messages").stream():
+        txt = doc.to_dict().get("text", "").lower()
+        if txt == m.text.strip().lower():
+            continue  # Avoid self match
+        if all(kw in txt for kw in keywords):
+            results.append(doc.to_dict().get("text"))
+            if len(results) >= 3:
+                break
+    if results:
+        bot.reply_to(m, "🔍 Matches found:\n\n" + "\n\n".join(results), disable_notification=True)
+    else:
+        bot.reply_to(m, f"Kuch nahi mila for '{m.text}', sahab.", disable_notification=True)
 
-# Run
+# Run Bot
 def run_bot():
     bot.infinity_polling()
 
+# Keep Alive
 app = Flask(__name__)
 @app.route('/')
 def home(): return "Bot is alive!"
