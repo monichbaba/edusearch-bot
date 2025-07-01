@@ -43,7 +43,7 @@ def handle_channel_post(message):
         except Exception as e:
             print(f"Unpin failed: {e}")
 
-# 🔍 /search command — multi-keyword AND search
+# 🔍 /search command — smart, no duplicates
 @bot.message_handler(commands=['search'])
 def search_messages(message):
     parts = message.text.strip().split(' ', 1)
@@ -52,7 +52,7 @@ def search_messages(message):
         return
 
     keywords = parts[1].strip().lower().split()
-    results = set()
+    seen = set()
 
     messages_ref = db.collection("messages")
     docs = messages_ref.stream()
@@ -62,16 +62,15 @@ def search_messages(message):
         text = data.get("text", "").strip()
         text_lower = text.lower()
 
-        if all(kw in text_lower for kw in keywords):
-            if text_lower not in results:
-                results.add(text_lower)
-                bot.send_message(message.chat.id, f"🔍 Match:\n\n{text}", disable_notification=True)
-                break
+        if all(kw in text_lower for kw in keywords) and text_lower not in seen:
+            seen.add(text_lower)
+            bot.send_message(message.chat.id, f"🔍 Match:\n\n{text}", disable_notification=True)
+            break
 
-    if not results:
+    if not seen:
         bot.send_message(message.chat.id, f"Kuch nahi mila for '{parts[1]}', jaan.", disable_notification=True)
 
-# 🤖 Auto-search with keyword + Firestore + Self-match + Clean result
+# 🤖 Auto-search with clean filter (no repeats)
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
     user_text = message.text.strip().lower()
@@ -82,7 +81,7 @@ def auto_search_in_group(message):
         return
 
     keywords = [kw for kw in user_text.split() if kw != "search"]
-    results = set()
+    seen = set()
 
     messages_ref = db.collection("messages")
     docs = messages_ref.stream()
@@ -95,15 +94,14 @@ def auto_search_in_group(message):
         if text_lower == user_text:
             continue
 
-        if all(kw in text_lower for kw in keywords):
-            if text_lower not in results:
-                results.add(text_lower)
-                bot.reply_to(message, f"🔍 Auto-match mila:\n\n{text}", disable_notification=True)
-                break  # sirf 1 match dikhaye
+        if all(kw in text_lower for kw in keywords) and text_lower not in seen:
+            seen.add(text_lower)
+            bot.reply_to(message, f"🔍 Auto-match mila:\n\n{text}", disable_notification=True)
+            break
 
     save_message_to_firestore(message.chat.id, user_text, message.date)
 
-    if not results:
+    if not seen:
         bot.reply_to(message, f"🔔 Saved only (no match): '{user_text}'", disable_notification=True)
 
 # 💾 Firestore Save Function
@@ -115,12 +113,12 @@ def save_message_to_firestore(chat_id, text, timestamp):
         'timestamp': timestamp
     })
 
-# 🔁 Run bot in background thread
+# 🔁 Bot thread
 def run_bot():
     print("🤖 Bot is running...")
     bot.infinity_polling()
 
-# 🌐 Flask app (for Render keep-alive)
+# 🌐 Flask keep-alive
 app = Flask(__name__)
 
 @app.route('/')
