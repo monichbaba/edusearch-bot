@@ -1,9 +1,11 @@
 import telebot
 import re
 import os
+import threading
+from flask import Flask
 
-# Bot token
-TOKEN = os.environ.get("TOKEN")
+# Bot token from Render Environment Variable
+TOKEN = os.environ.get("BOT_TOKEN")
 
 # IDs
 CHANNEL_USERNAME = "@IcsCoach"
@@ -66,7 +68,7 @@ def search_messages(message):
         disable_notification=True
     )
 
-# 🤖 Auto-search when group members type something
+# 🤖 Auto-search for group messages
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
     user_text = message.text.strip().lower()
@@ -81,6 +83,19 @@ def auto_search_in_group(message):
             )
             return
 
-# 🟢 Start the bot
-print("🤖 Bot is running...")
-bot.polling()
+# 🧠 Run bot in background thread
+def run_bot():
+    print("🤖 Bot is running...")
+    bot.infinity_polling()
+
+# 🌐 Dummy Flask server to keep Render Web Service alive
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is running on Render Free Plan."
+
+if __name__ == '__main__':
+    t = threading.Thread(target=run_bot)
+    t.start()
+    app.run(host='0.0.0.0', port=10000)
