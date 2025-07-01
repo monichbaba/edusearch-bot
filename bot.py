@@ -21,7 +21,6 @@ CHANNEL_USERNAME = "@IcsCoach"
 GROUP_CHAT_ID = -1002549002656
 
 bot = telebot.TeleBot(TOKEN)
-saved_messages = []
 
 # /id command
 @bot.message_handler(commands=['id'])
@@ -38,26 +37,43 @@ def send_id(message):
 def handle_channel_post(message):
     if message.text:
         print(f"Channel message: {message.text}")
-        saved_messages.append(message.text)
+
+        # ✅ Save to Firestore
+        save_message_to_firestore(message.chat.id, message.text, message.date)
+
         try:
             bot.unpin_chat_message(GROUP_CHAT_ID)
         except Exception as e:
             print(f"Unpin failed: {e}")
 
-# /search command
+# /search command using Firestore
 @bot.message_handler(commands=['search'])
 def search_messages(message):
     parts = message.text.strip().split(' ', 1)
     if len(parts) < 2:
         bot.send_message(message.chat.id, "Jaan, please likho: /search keyword", disable_notification=True)
         return
+
     keyword = parts[1].strip().lower()
-    pattern = re.compile(rf'\b{re.escape(keyword)}\b', re.IGNORECASE)
-    for msg in saved_messages:
-        if pattern.search(msg):
-            bot.send_message(message.chat.id, f"🔍 1 match:\n\n{msg}", disable_notification=True)
-            return
-    bot.send_message(message.chat.id, f"Kuch nahi mila for '{keyword}', jaan.", disable_notification=True)
+    results = []
+
+    # 🔍 Firestore query
+    messages_ref = db.collection("messages")
+    docs = messages_ref.stream()
+
+    for doc in docs:
+        data = doc.to_dict()
+        text = data.get("text", "").lower()
+        if keyword in text:
+            results.append(data["text"])
+            if len(results) >= 3:
+                break  # limit to 3 matches
+
+    if results:
+        reply = "\n\n".join([f"🔍 Match:\n{r}" for r in results])
+        bot.send_message(message.chat.id, reply, disable_notification=True)
+    else:
+        bot.send_message(message.chat.id, f"Kuch nahi mila for '{keyword}', jaan.", disable_notification=True)
 
 # Auto-search in group + Save to Firestore
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
@@ -67,10 +83,10 @@ def auto_search_in_group(message):
 
     user_text = message.text.strip().lower()
     pattern = re.compile(rf'\b{re.escape(user_text)}\b', re.IGNORECASE)
-    for msg in saved_messages:
-        if pattern.search(msg):
-            bot.reply_to(message, f"🔍 Auto-match mila:\n\n{msg}", disable_notification=True)
-            return
+
+    # Optional: Firestore query again (or skip for now)
+    # For now, just echo back match found
+    bot.reply_to(message, f"🔔 Saved & ready for search: '{user_text}'", disable_notification=True)
 
 # Firestore Save Function
 def save_message_to_firestore(chat_id, text, timestamp):
