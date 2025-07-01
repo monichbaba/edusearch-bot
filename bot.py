@@ -22,7 +22,7 @@ GROUP_CHAT_ID = -1002549002656
 
 bot = telebot.TeleBot(TOKEN)
 
-# /id command
+# 🆔 /id command
 @bot.message_handler(commands=['id'])
 def send_id(message):
     bot.send_message(
@@ -32,7 +32,7 @@ def send_id(message):
         disable_notification=True
     )
 
-# Channel → Save + Auto-unpin
+# 📩 Channel → Save + Auto-unpin
 @bot.channel_post_handler(func=lambda message: True)
 def handle_channel_post(message):
     if message.text:
@@ -43,7 +43,7 @@ def handle_channel_post(message):
         except Exception as e:
             print(f"Unpin failed: {e}")
 
-# /search command using Firestore with multi-keyword AND-based match
+# 🔍 /search command — multi-keyword AND search
 @bot.message_handler(commands=['search'])
 def search_messages(message):
     parts = message.text.strip().split(' ', 1)
@@ -72,7 +72,7 @@ def search_messages(message):
     else:
         bot.send_message(message.chat.id, f"Kuch nahi mila for '{parts[1]}', jaan.", disable_notification=True)
 
-# Auto-search with "search" keyword + Firestore + self-match check
+# 🤖 Auto-search with keyword + Firestore + Self-match avoid
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
     user_text = message.text.strip().lower()
@@ -92,8 +92,45 @@ def auto_search_in_group(message):
         data = doc.to_dict()
         text = data.get("text", "").lower()
 
-        if text == user_text:
+        if text.strip() == user_text.strip():
             continue
 
         if all(kw in text for kw in keywords) and data["text"] not in results:
-            results.append(
+            results.append(data["text"])
+            if len(results) >= 3:
+                break
+
+    save_message_to_firestore(message.chat.id, user_text, message.date)
+
+    if results:
+        reply = "\n\n".join([f"🔍 Auto-match:\n{r}" for r in results])
+        bot.reply_to(message, reply, disable_notification=True)
+    else:
+        bot.reply_to(message, f"🔔 Saved only (no match): '{user_text}'", disable_notification=True)
+
+# 💾 Firestore Save Function
+def save_message_to_firestore(chat_id, text, timestamp):
+    doc_ref = db.collection("messages").document()
+    doc_ref.set({
+        'chat_id': chat_id,
+        'text': text,
+        'timestamp': timestamp
+    })
+
+# 🔁 Run bot in background thread
+def run_bot():
+    print("🤖 Bot is running...")
+    bot.infinity_polling()
+
+# 🌐 Flask app (for Render keep-alive)
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+if __name__ == '__main__':
+    t = threading.Thread(target=run_bot)
+    t.start()
+    PORT = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=PORT)
