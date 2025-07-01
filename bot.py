@@ -37,16 +37,13 @@ def send_id(message):
 def handle_channel_post(message):
     if message.text:
         print(f"Channel message: {message.text}")
-
-        # ✅ Save to Firestore
         save_message_to_firestore(message.chat.id, message.text, message.date)
-
         try:
             bot.unpin_chat_message(GROUP_CHAT_ID)
         except Exception as e:
             print(f"Unpin failed: {e}")
 
-# /search command using Firestore
+# /search command using Firestore with unique match
 @bot.message_handler(commands=['search'])
 def search_messages(message):
     parts = message.text.strip().split(' ', 1)
@@ -64,7 +61,7 @@ def search_messages(message):
     for doc in docs:
         data = doc.to_dict()
         text = data.get("text", "").lower()
-        if keyword in text:
+        if keyword in text and data["text"] not in results:
             results.append(data["text"])
             if len(results) >= 3:
                 break  # limit to 3 matches
@@ -78,14 +75,8 @@ def search_messages(message):
 # Auto-search in group + Save to Firestore
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
-    # ✅ Save message to Firestore
     save_message_to_firestore(message.chat.id, message.text, message.date)
-
     user_text = message.text.strip().lower()
-    pattern = re.compile(rf'\b{re.escape(user_text)}\b', re.IGNORECASE)
-
-    # Optional: Firestore query again (or skip for now)
-    # For now, just echo back match found
     bot.reply_to(message, f"🔔 Saved & ready for search: '{user_text}'", disable_notification=True)
 
 # Firestore Save Function
