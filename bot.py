@@ -43,7 +43,7 @@ def handle_channel_post(message):
         except Exception as e:
             print(f"Unpin failed: {e}")
 
-# /search command using Firestore with unique match
+# /search command using Firestore with multi-keyword AND-based match
 @bot.message_handler(commands=['search'])
 def search_messages(message):
     parts = message.text.strip().split(' ', 1)
@@ -51,7 +51,8 @@ def search_messages(message):
         bot.send_message(message.chat.id, "Jaan, please likho: /search keyword", disable_notification=True)
         return
 
-    keyword = parts[1].strip().lower()
+    # 🧠 Split multiple keywords like: "ai policy"
+    keywords = parts[1].strip().lower().split()
     results = []
 
     # 🔍 Firestore query
@@ -61,16 +62,19 @@ def search_messages(message):
     for doc in docs:
         data = doc.to_dict()
         text = data.get("text", "").lower()
-        if keyword in text and data["text"] not in results:
+
+        # ✅ Match only if ALL keywords exist in text
+        if all(kw in text for kw in keywords) and data["text"] not in results:
             results.append(data["text"])
             if len(results) >= 3:
-                break  # limit to 3 matches
+                break
 
+    # 💬 Send result
     if results:
         reply = "\n\n".join([f"🔍 Match:\n{r}" for r in results])
         bot.send_message(message.chat.id, reply, disable_notification=True)
     else:
-        bot.send_message(message.chat.id, f"Kuch nahi mila for '{keyword}', jaan.", disable_notification=True)
+        bot.send_message(message.chat.id, f"Kuch nahi mila for '{parts[1]}', jaan.", disable_notification=True)
 
 # Auto-search in group + Save to Firestore
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
