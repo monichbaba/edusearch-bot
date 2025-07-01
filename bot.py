@@ -10,7 +10,7 @@ from flask import Flask
 # Bot token
 TOKEN = os.environ.get("TOKEN")
 
-# Firebase credentials from environment
+# Firebase credentials
 firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
 cred = credentials.Certificate(firebase_key)
 firebase_admin.initialize_app(cred)
@@ -21,6 +21,18 @@ CHANNEL_USERNAME = "@IcsCoach"
 GROUP_CHAT_ID = -1002549002656
 
 bot = telebot.TeleBot(TOKEN)
+
+# ⛔ Common words to ignore in tags
+STOP_WORDS = {
+    "is", "the", "a", "an", "for", "to", "of", "in", "on", "and", "or", "with", "this", "that"
+}
+
+# 🔧 Generate tags from message
+def generate_tags(text):
+    words = re.findall(r'\b[a-z]{3,}\b', text.lower())
+    filtered = [word for word in words if word not in STOP_WORDS]
+    unique_tags = list(dict.fromkeys(filtered))[:5]  # max 5 tags
+    return unique_tags
 
 # 🆔 /id command
 @bot.message_handler(commands=['id'])
@@ -37,7 +49,8 @@ def send_id(message):
 def handle_channel_post(message):
     if message.text:
         print(f"Channel message: {message.text}")
-        save_message_to_firestore(message.chat.id, message.text, message.date)
+        tags = generate_tags(message.text)
+        save_message_to_firestore(message.chat.id, message.text, message.date, tags)
         try:
             bot.unpin_chat_message(GROUP_CHAT_ID)
         except Exception as e:
@@ -64,23 +77,28 @@ def search_messages(message):
 
         if all(kw in text_lower for kw in keywords) and text_lower not in seen:
             seen.add(text_lower)
-            bot.send_message(message.chat.id, f"🔍 Match:\n\n{text}", disable_notification=True)
+            tags = data.get("tags", [])
+            tag_line = f"\n\n📎 Tags: " + " ".join([f"#{t}" for t in tags]) if tags else ""
+            bot.send_message(message.chat.id, f"🔍 Match:\n\n{text}{tag_line}", disable_notification=True)
             break
 
     if not seen:
         bot.send_message(message.chat.id, f"Kuch nahi mila for '{parts[1]}', jaan.", disable_notification=True)
 
-# 🤖 Auto-search with clean filter (no repeats)
+# 🤖 Auto-search with tag reply + Firestore
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
-    user_text = message.text.strip().lower()
+    user_text = message.text.strip()
+    text_lower = user_text.lower()
 
-    if "search" not in user_text:
-        save_message_to_firestore(message.chat.id, user_text, message.date)
-        bot.reply_to(message, f"🔔 Saved & ready for search: '{user_text}'", disable_notification=True)
+    if "search" not in text_lower:
+        tags = generate_tags(user_text)
+        save_message_to_firestore(message.chat.id, user_text, message.date, tags)
+        tag_line = f"\n📎 Tags: " + " ".join([f"#{t}" for t in tags]) if tags else ""
+        bot.reply_to(message, f"🔔 Saved & ready for search: '{user_text}'{tag_line}", disable_notification=True)
         return
 
-    keywords = [kw for kw in user_text.split() if kw != "search"]
+    keywords = [kw for kw in text_lower.split() if kw != "search"]
     seen = set()
 
     messages_ref = db.collection("messages")
@@ -89,31 +107,36 @@ def auto_search_in_group(message):
     for doc in docs:
         data = doc.to_dict()
         text = data.get("text", "").strip()
-        text_lower = text.lower()
+        text_l = text.lower()
 
-        if text_lower == user_text:
+        if text_l == text_lower:
             continue
 
-        if all(kw in text_lower for kw in keywords) and text_lower not in seen:
-            seen.add(text_lower)
-            bot.reply_to(message, f"🔍 Auto-match mila:\n\n{text}", disable_notification=True)
+        if all(kw in text_l for kw in keywords) and text_l not in seen:
+            seen.add(text_l)
+            tags = data.get("tags", [])
+            tag_line = f"\n\n📎 Tags: " + " ".join([f"#{t}" for t in tags]) if tags else ""
+            bot.reply_to(message, f"🔍 Auto-match mila:\n\n{text}{tag_line}", disable_notification=True)
             break
 
-    save_message_to_firestore(message.chat.id, user_text, message.date)
+    tags = generate_tags(user_text)
+    save_message_to_firestore(message.chat.id, user_text, message.date, tags)
 
     if not seen:
-        bot.reply_to(message, f"🔔 Saved only (no match): '{user_text}'", disable_notification=True)
+        tag_line = f"\n📎 Tags: " + " ".join([f"#{t}" for t in tags]) if tags else ""
+        bot.reply_to(message, f"🔔 Saved only (no match): '{user_text}'{tag_line}", disable_notification=True)
 
-# 💾 Firestore Save Function
-def save_message_to_firestore(chat_id, text, timestamp):
+# 💾 Firestore Save Function (with tags)
+def save_message_to_firestore(chat_id, text, timestamp, tags):
     doc_ref = db.collection("messages").document()
     doc_ref.set({
         'chat_id': chat_id,
         'text': text,
-        'timestamp': timestamp
+        'timestamp': timestamp,
+        'tags': tags
     })
 
-# 🔁 Bot thread
+# 🔁 Threaded bot loop
 def run_bot():
     print("🤖 Bot is running...")
     bot.infinity_polling()
