@@ -51,11 +51,9 @@ def search_messages(message):
         bot.send_message(message.chat.id, "Jaan, please likho: /search keyword", disable_notification=True)
         return
 
-    # 🧠 Split multiple keywords like: "ai policy"
     keywords = parts[1].strip().lower().split()
     results = []
 
-    # 🔍 Firestore query
     messages_ref = db.collection("messages")
     docs = messages_ref.stream()
 
@@ -63,49 +61,39 @@ def search_messages(message):
         data = doc.to_dict()
         text = data.get("text", "").lower()
 
-        # ✅ Match only if ALL keywords exist in text
         if all(kw in text for kw in keywords) and data["text"] not in results:
             results.append(data["text"])
             if len(results) >= 3:
                 break
 
-    # 💬 Send result
     if results:
         reply = "\n\n".join([f"🔍 Match:\n{r}" for r in results])
         bot.send_message(message.chat.id, reply, disable_notification=True)
     else:
         bot.send_message(message.chat.id, f"Kuch nahi mila for '{parts[1]}', jaan.", disable_notification=True)
 
-# Auto-search in group + Save to Firestore
+# Auto-search with "search" keyword + Firestore + self-match check
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
-    save_message_to_firestore(message.chat.id, message.text, message.date)
     user_text = message.text.strip().lower()
-    bot.reply_to(message, f"🔔 Saved & ready for search: '{user_text}'", disable_notification=True)
 
-# Firestore Save Function
-def save_message_to_firestore(chat_id, text, timestamp):
-    doc_ref = db.collection("messages").document()
-    doc_ref.set({
-        'chat_id': chat_id,
-        'text': text,
-        'timestamp': timestamp
-    })
+    if "search" not in user_text:
+        save_message_to_firestore(message.chat.id, user_text, message.date)
+        bot.reply_to(message, f"🔔 Saved & ready for search: '{user_text}'", disable_notification=True)
+        return
 
-# Run bot in thread
-def run_bot():
-    print("🤖 Bot is running...")
-    bot.infinity_polling()
+    keywords = [kw for kw in user_text.split() if kw != "search"]
+    results = []
 
-# Flask app to keep alive on Render
-app = Flask(__name__)
+    messages_ref = db.collection("messages")
+    docs = messages_ref.stream()
 
-@app.route('/')
-def home():
-    return "Bot is alive!"
+    for doc in docs:
+        data = doc.to_dict()
+        text = data.get("text", "").lower()
 
-if __name__ == '__main__':
-    t = threading.Thread(target=run_bot)
-    t.start()
-    PORT = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=PORT)
+        if text == user_text:
+            continue
+
+        if all(kw in text for kw in keywords) and data["text"] not in results:
+            results.append(
