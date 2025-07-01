@@ -52,27 +52,26 @@ def search_messages(message):
         return
 
     keywords = parts[1].strip().lower().split()
-    results = []
+    results = set()
 
     messages_ref = db.collection("messages")
     docs = messages_ref.stream()
 
     for doc in docs:
         data = doc.to_dict()
-        text = data.get("text", "").lower()
+        text = data.get("text", "").strip()
+        text_lower = text.lower()
 
-        if all(kw in text for kw in keywords) and data["text"] not in results:
-            results.append(data["text"])
-            if len(results) >= 3:
+        if all(kw in text_lower for kw in keywords):
+            if text_lower not in results:
+                results.add(text_lower)
+                bot.send_message(message.chat.id, f"🔍 Match:\n\n{text}", disable_notification=True)
                 break
 
-    if results:
-        reply = "\n\n".join([f"🔍 Match:\n{r}" for r in results])
-        bot.send_message(message.chat.id, reply, disable_notification=True)
-    else:
+    if not results:
         bot.send_message(message.chat.id, f"Kuch nahi mila for '{parts[1]}', jaan.", disable_notification=True)
 
-# 🤖 Auto-search with keyword + Firestore + Self-match avoid
+# 🤖 Auto-search with keyword + Firestore + Self-match + Clean result
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
     user_text = message.text.strip().lower()
@@ -83,29 +82,28 @@ def auto_search_in_group(message):
         return
 
     keywords = [kw for kw in user_text.split() if kw != "search"]
-    results = []
+    results = set()
 
     messages_ref = db.collection("messages")
     docs = messages_ref.stream()
 
     for doc in docs:
         data = doc.to_dict()
-        text = data.get("text", "").lower()
+        text = data.get("text", "").strip()
+        text_lower = text.lower()
 
-        if text.strip() == user_text.strip():
+        if text_lower == user_text:
             continue
 
-        if all(kw in text for kw in keywords) and data["text"] not in results:
-            results.append(data["text"])
-            if len(results) >= 3:
-                break
+        if all(kw in text_lower for kw in keywords):
+            if text_lower not in results:
+                results.add(text_lower)
+                bot.reply_to(message, f"🔍 Auto-match mila:\n\n{text}", disable_notification=True)
+                break  # sirf 1 match dikhaye
 
     save_message_to_firestore(message.chat.id, user_text, message.date)
 
-    if results:
-        reply = "\n\n".join([f"🔍 Auto-match:\n{r}" for r in results])
-        bot.reply_to(message, reply, disable_notification=True)
-    else:
+    if not results:
         bot.reply_to(message, f"🔔 Saved only (no match): '{user_text}'", disable_notification=True)
 
 # 💾 Firestore Save Function
