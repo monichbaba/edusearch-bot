@@ -1,8 +1,10 @@
 import telebot
 import re
+import os
 
 # Bot token
-TOKEN = "YOUR_BOT_TOKEN_HERE"
+TOKEN = os.environ.get("TOKEN")
+
 
 # IDs
 CHANNEL_USERNAME = "@IcsCoach"
