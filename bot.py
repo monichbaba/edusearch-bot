@@ -1,3 +1,6 @@
+import json
+import firebase_admin
+from firebase_admin import credentials, firestore
 import telebot
 import re
 import os
@@ -6,6 +9,12 @@ from flask import Flask
 
 # Bot token
 TOKEN = os.environ.get("TOKEN")
+
+# Firebase credentials from environment
+firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
+cred = credentials.Certificate(firebase_key)
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 # IDs
 CHANNEL_USERNAME = "@IcsCoach"
@@ -50,15 +59,27 @@ def search_messages(message):
             return
     bot.send_message(message.chat.id, f"Kuch nahi mila for '{keyword}', jaan.", disable_notification=True)
 
-# Auto-search in group
+# Auto-search in group + Save to Firestore
 @bot.message_handler(func=lambda message: message.chat.id == GROUP_CHAT_ID and message.text and not message.text.startswith('/'))
 def auto_search_in_group(message):
+    # ✅ Save message to Firestore
+    save_message_to_firestore(message.chat.id, message.text, message.date)
+
     user_text = message.text.strip().lower()
     pattern = re.compile(rf'\b{re.escape(user_text)}\b', re.IGNORECASE)
     for msg in saved_messages:
         if pattern.search(msg):
             bot.reply_to(message, f"🔍 Auto-match mila:\n\n{msg}", disable_notification=True)
             return
+
+# Firestore Save Function
+def save_message_to_firestore(chat_id, text, timestamp):
+    doc_ref = db.collection("messages").document()
+    doc_ref.set({
+        'chat_id': chat_id,
+        'text': text,
+        'timestamp': timestamp
+    })
 
 # Run bot in thread
 def run_bot():
