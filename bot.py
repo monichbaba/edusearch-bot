@@ -1,4 +1,4 @@
- import json
+import json
 import firebase_admin
 from firebase_admin import credentials, firestore
 import telebot
@@ -17,26 +17,29 @@ db = firestore.client()
 GROUP_CHAT_ID = -1002549002656
 bot = telebot.TeleBot(TOKEN)
 
-# Stopwords for tag filtering
+# Stopwords
 STOPWORDS = {"the", "is", "a", "an", "of", "in", "to", "for", "and", "on", "with", "this", "that", "by", "at", "as"}
 
-# 🔗 Save + Search Button + Tags
+# 🔗 Save + Tags + Search Button
 def save_and_add_button(chat_id, text, timestamp, is_group=False):
-    doc_ref = db.collection("messages").document()
-    doc_ref.set({'chat_id': chat_id, 'text': text, 'timestamp': timestamp})
+    # Save to Firestore
+    db.collection("messages").document().set({
+        'chat_id': chat_id,
+        'text': text,
+        'timestamp': timestamp
+    })
 
     tags = generate_tags(text)
     tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
 
     if is_group:
         markup = types.InlineKeyboardMarkup()
-        btn = types.InlineKeyboardButton("🔍 Search Something", callback_data="btn_search")
-        markup.add(btn)
+        markup.add(types.InlineKeyboardButton("🔍 Search Something", callback_data="btn_search"))
         bot.send_message(chat_id, f"🔔 Message saved. Use below to search:{tag_line}", reply_markup=markup, disable_notification=True)
     else:
-        print(f"Saved: {text}")
+        print(f"✅ Saved (channel): {text}")
 
-# 🏷️ Tag generator
+# 🏷️ Tag Generator
 def generate_tags(text):
     words = re.findall(r'\b\w+\b', text.lower())
     filtered = [w for w in words if w not in STOPWORDS]
@@ -49,26 +52,26 @@ def generate_tags(text):
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
-# Channel
+# Channel Handler
 @bot.channel_post_handler(func=lambda m: True)
 def handle_channel(m):
     if m.text:
         save_and_add_button(m.chat.id, m.text, m.date)
 
-# Group
+# Group Handler
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
 def handle_group(m):
     save_and_add_button(m.chat.id, m.text, m.date, is_group=True)
 
-# Button click
+# Button Click
 @bot.callback_query_handler(func=lambda c: c.data == "btn_search")
 def handle_search_button(c):
     bot.send_message(c.message.chat.id, "Sahab, aap kya search karna chahte hain? Type keyword(s):", reply_to_message_id=c.message.message_id)
 
-# Search reply
-@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and m.reply_to_message)
+# Search Reply
+@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and m.reply_to_message and m.reply_to_message.from_user.is_bot)
 def handle_search_reply(m):
-    if m.reply_to_message.from_user.is_bot and "Sahab, aap kya search karna chahte hain?" in m.reply_to_message.text:
+    if "Sahab, aap kya search karna chahte hain?" in m.reply_to_message.text:
         keywords = m.text.strip().lower().split()
         results = []
         for doc in db.collection("messages").stream():
