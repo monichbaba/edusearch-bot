@@ -5,9 +5,9 @@ import telebot
 import re
 import os
 import threading
-from flask import Flask
+from flask import Flask, request
 
-# Setup
+# 🔐 Environment Variables
 TOKEN = os.environ.get("TOKEN")
 firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
 cred = credentials.Certificate(firebase_key)
@@ -27,7 +27,7 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# 🔐 Save + 📎 Tags
+# 🧠 Firestore Save + Bot Reply
 def save_and_reply(chat_id, text, timestamp, is_group=False):
     print("📡 save_and_reply() called")
     try:
@@ -51,35 +51,45 @@ def save_and_reply(chat_id, text, timestamp, is_group=False):
     else:
         print(f"✅ Saved (channel): {text[:100]}")
 
-# /id command
-@bot.message_handler(commands=['id'])
-def send_id(message):
-    bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
-
-# CHANNEL handler
+# 📌 Channel Handler
 @bot.channel_post_handler(func=lambda m: True)
 def handle_channel(m):
     print("📩 CHANNEL handler activated")
     print("📨 Channel Message:", m.text)
     save_and_reply(m.chat.id, m.text, m.date)
 
-# GROUP handler
+# 📌 Group Handler
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
 def handle_group(m):
     print("💬 GROUP handler activated")
     print("📨 Group Message:", m.text)
     save_and_reply(m.chat.id, m.text, m.date, is_group=True)
 
-# Bot polling
-def run_bot():
-    print("🚀 Bot polling started")
-    bot.infinity_polling()
+# 📎 /id command
+@bot.message_handler(commands=['id'])
+def send_id(message):
+    bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
-# Flask server (keepalive)
+# 🌐 Flask App for Webhook
 app = Flask(__name__)
+
 @app.route('/')
-def home(): return "Bot is alive!"
+def home():
+    return "Bot is alive!"
+
+@app.route(f'/{TOKEN}', methods=['POST'])
+def webhook():
+    json_string = request.get_data().decode('utf-8')
+    update = telebot.types.Update.de_json(json_string)
+    bot.process_new_updates([update])
+    return '', 200
+
+def set_webhook():
+    url = f"https://edusearch-bot.onrender.com/{TOKEN}"
+    bot.remove_webhook()
+    bot.set_webhook(url=url)
+    print(f"🌐 Webhook set to {url}")
 
 if __name__ == '__main__':
-    threading.Thread(target=run_bot).start()
+    set_webhook()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
