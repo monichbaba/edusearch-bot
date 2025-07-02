@@ -6,8 +6,8 @@ import re
 import os
 from flask import Flask, request
 
-# ========== 🛠 Setup ==========
-print("🚀 Starting EduSearch Bot...")
+# ========== 🔧 Setup ==========
+print("🚀 EduSearch Bot starting...")
 
 TOKEN = os.environ.get("TOKEN")
 firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
@@ -29,13 +29,12 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# ========== 💾 Save + Debug ==========
+# ========== 💾 Save to Firestore ==========
 def save_and_reply(chat_id, text, timestamp, is_group=False):
     print("📡 save_and_reply() called")
     print(f"🔎 Chat ID: {chat_id}")
     print(f"📝 Message Text: {text}")
     print(f"⏰ Timestamp: {timestamp}")
-    
     try:
         db.collection("messages").document().set({
             'chat_id': chat_id,
@@ -50,29 +49,34 @@ def save_and_reply(chat_id, text, timestamp, is_group=False):
         if is_group:
             bot.send_message(chat_id, f"🔔 Message saved:\n\n{text}{tag_line}", disable_notification=True)
         else:
-            print(f"✅ Saved (channel): {text}")
+            print(f"✅ Channel message saved: {text}")
 
     except Exception as e:
         print("❌ Firestore save failed:", e)
 
-# ========== 🔧 Command ==========
+# ========== 🔁 Command ==========
 @bot.message_handler(commands=['id'])
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
-# ========== 📥 Handlers ==========
+# ========== 📨 Channel Post ==========
 @bot.channel_post_handler(func=lambda m: True)
 def handle_channel(m):
-    if m.text:
-        print("📨 Received message from CHANNEL")
-        save_and_reply(m.chat.id, m.text, m.date)
+    print("📩 Incoming CHANNEL message handler triggered.")
+    try:
+        if m.text:
+            print("📨 Message from CHANNEL:", m.text)
+            save_and_reply(m.chat.id, m.text, m.date)
+    except Exception as e:
+        print("❌ Error in handle_channel:", e)
 
+# ========== 👥 Group Message ==========
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
 def handle_group(m):
-    print("👥 Received message in GROUP")
+    print("👥 Received GROUP message:", m.text)
     save_and_reply(m.chat.id, m.text, m.date, is_group=True)
 
-# ========== 🌐 Webhook ==========
+# ========== 🌐 Webhook Routes ==========
 WEBHOOK_URL = "https://edusearch-bot.onrender.com"
 
 @app.route(f'/{TOKEN}', methods=['POST'])
