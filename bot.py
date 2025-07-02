@@ -27,26 +27,34 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# ========== 🔐 Save + Reply ==========
+# ========== 🔐 Save + Debug Reply ==========
 def save_and_reply(chat_id, text, timestamp, is_group=False):
-    db.collection("messages").document().set({
-        'chat_id': chat_id,
-        'text': text,
-        'timestamp': timestamp
-    })
-    tags = generate_tags(text)
-    tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
-    if is_group:
-        bot.send_message(chat_id, f"🔔 Message saved.{tag_line}", disable_notification=True)
-    else:
-        print(f"✅ Saved (channel): {text}")
+    try:
+        print("🔥 Trying to save to Firestore:", text)
+        db.collection("messages").document().set({
+            'chat_id': chat_id,
+            'text': text,
+            'timestamp': timestamp
+        })
+        print("✅ Firestore save successful")
 
-# ========== 🔧 Commands & Handlers ==========
+        tags = generate_tags(text)
+        tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
 
+        if is_group:
+            bot.send_message(chat_id, f"🔔 Message saved.{tag_line}", disable_notification=True)
+        else:
+            print(f"✅ Saved (channel): {text}")
+
+    except Exception as e:
+        print("❌ Firestore save failed:", e)
+
+# ========== 🔧 Commands ==========
 @bot.message_handler(commands=['id'])
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
+# ========== 🧾 Message Handlers ==========
 @bot.channel_post_handler(func=lambda m: True)
 def handle_channel(m):
     if m.text:
