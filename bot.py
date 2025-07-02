@@ -28,6 +28,9 @@ def generate_tags(text):
 
 # 🧠 Firestore Save + Bot Reply
 def save_and_reply(chat_id, text, timestamp, is_group=False):
+    if text.lower().startswith("search "):  # 👈 prevent saving search command
+        return
+
     print("📡 save_and_reply() called")
     try:
         db.collection("messages").document().set({
@@ -69,8 +72,8 @@ def handle_group(m):
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
-# 🔍 /search command handler
-@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text.lower().startswith('search '))
+# 🔍 Universal Search Handler (Fix applied)
+@bot.message_handler(func=lambda m: m.text and m.text.lower().startswith('search '))
 def handle_search(m):
     keyword = m.text[7:].strip().lower()
     print(f"🔍 Search triggered for: {keyword}")
