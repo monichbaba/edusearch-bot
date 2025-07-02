@@ -29,13 +29,21 @@ def generate_tags(text):
 
 # 🔐 Save + 📎 Tags (No Button)
 def save_and_reply(chat_id, text, timestamp, is_group=False):
-    db.collection("messages").document().set({
-        'chat_id': chat_id,
-        'text': text,
-        'timestamp': timestamp
-    })
+    print("🔥 Trying to save:", text)
+
+    try:
+        db.collection("messages").document().set({
+            'chat_id': chat_id,
+            'text': text,
+            'timestamp': timestamp
+        })
+        print("✅ Saved to Firestore")
+    except Exception as e:
+        print("❌ Firestore Save Error:", e)
+
     tags = generate_tags(text)
     tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
+
     if is_group:
         bot.send_message(chat_id, f"🔔 Message saved.{tag_line}", disable_notification=True)
     else:
