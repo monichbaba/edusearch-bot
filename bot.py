@@ -1,86 +1,113 @@
-import json
+import os
+import re
 import firebase_admin
 from firebase_admin import credentials, firestore
-import telebot
-import re
-import os
 from flask import Flask, request
+import telebot
 
-# Setup
-TOKEN = os.environ.get("TOKEN")
-firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
-cred = credentials.Certificate(firebase_key)
+# ✅ Load env vars
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Optional, if needed
+
+# ✅ Initialize Telegram bot
+bot = telebot.TeleBot(BOT_TOKEN)
+
+# ✅ Firebase setup
+cred = credentials.Certificate("firebase.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-bot = telebot.TeleBot(TOKEN)
+# ✅ Flask app
 app = Flask(__name__)
 
-GROUP_CHAT_ID = -1002549002656
-STOPWORDS = {"the", "is", "a", "an", "of", "in", "to", "for", "and", "on", "with", "this", "that", "by", "at", "as"}
+# ✅ Extract #tags from message
+def extract_tags(text):
+    return re.findall(r"#\w+", text)
 
-# 🔖 Tag Generator
-def generate_tags(text):
-    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
-    filtered = [w for w in words if w not in STOPWORDS]
-    unique = list(dict.fromkeys(filtered))
-    return " ".join(f"#{w}" for w in unique[:5])
-
-# 💾 Save to Firestore
-def save_and_reply(chat_id, text, timestamp, is_group=False):
-    db.collection("messages").document().set({
-        'chat_id': chat_id,
-        'text': text,
-        'timestamp': timestamp
+# ✅ Firestore save
+def save_to_firestore(chat_id, user_name, message_text, tags):
+    db.collection("messages").add({
+        "chat_id": chat_id,
+        "user_name": user_name,
+        "message": message_text,
+        "tags": tags,
     })
-    tags = generate_tags(text)
-    tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
-    if is_group:
-        bot.send_message(chat_id, f"🔔 Message saved:{tag_line}", disable_notification=True)
+
+# ✅ Count Firestore messages
+def count_messages():
+    return len(list(db.collection("messages").stream()))
+
+# ✅ Get latest Firestore messages
+def get_latest_messages(n=5):
+    docs = db.collection("messages").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(n).stream()
+    return [doc.to_dict() for doc in docs]
+
+# ✅ Clear all Firestore messages
+def clear_messages():
+    docs = db.collection("messages").stream()
+    for doc in docs:
+        db.collection("messages").document(doc.id).delete()
+
+# ✅ Command parser
+def command_handler(text):
+    text = text.strip().lower()
+
+    if text == "/count":
+        count = count_messages()
+        return f"📊 Total messages saved: {count}"
+
+    elif text == "/latest":
+        latest = get_latest_messages()
+        if not latest:
+            return "📭 No messages found."
+        reply = "🕑 Latest messages:\n"
+        for msg in latest:
+            reply += f"- {msg.get('user_name', 'User')}: {msg.get('message', '')}\n"
+        return reply
+
+    elif text == "/clear":
+        clear_messages()
+        return "🧹 All messages cleared."
+
     else:
-        print(f"✅ Saved (channel): {text}")
+        return "❓ Unknown command."
 
-# 🆔 /id command
-@bot.message_handler(commands=['id'])
-def send_id(message):
-    bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown")
+# ✅ Main handler for all messages
+@bot.message_handler(func=lambda message: True)
+def handle_message(message):
+    chat_id = message.chat.id
+    user_name = message.from_user.first_name
+    message_text = message.text
 
-# 📥 Channel post handler
-@bot.channel_post_handler(func=lambda m: True)
-def handle_channel(m):
-    if m.text:
-        save_and_reply(m.chat.id, m.text, m.date)
+    if message_text.startswith("/"):
+        response = command_handler(message_text)
+        print(f"📤 Replying to command: {message_text}")
+        bot.send_message(chat_id, response)
+        return
 
-# 📥 Group message handler
-@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
-def handle_group(m):
-    if m.text.startswith("search "):
-        keyword = m.text.split("search ", 1)[1].strip().lower()
-        results = []
-        for doc in db.collection("messages").stream():
-            content = doc.to_dict()
-            if keyword in content.get("text", "").lower():
-                results.append(content.get("text"))
-        if results:
-            reply = "🔎 Found:\n\n" + "\n\n---\n\n".join(results[:5])
-        else:
-            reply = "❌ No results found."
-        bot.send_message(m.chat.id, reply)
-    else:
-        save_and_reply(m.chat.id, m.text, m.date, is_group=True)
+    tags = extract_tags(message_text)
+    save_to_firestore(chat_id, user_name, message_text, tags)
 
-# 🌐 Webhook Setup
-@app.route(f"/{TOKEN}", methods=["POST"])
+    tag_line = f"\n\n📎 Tags: {' '.join(tags)}" if tags else ""
+    print("📤 Reply bhejne ki koshish ho rahi hai...")
+    bot.send_message(chat_id, f"🔔 Message saved:{tag_line}", disable_notification=False)
+
+# ✅ Webhook receiver
+@app.route("/", methods=["POST"])
 def webhook():
-    bot.process_new_updates([telebot.types.Update.de_json(request.stream.read().decode("utf-8"))])
+    json_str = request.get_data().decode("UTF-8")
+    update = telebot.types.Update.de_json(json_str)
+    bot.process_new_updates([update])
     return "OK", 200
 
+# ✅ Render health check route
 @app.route("/")
 def index():
     return "Bot is alive!"
 
+# ✅ Run with webhook setup
 if __name__ == "__main__":
     bot.remove_webhook()
-    bot.set_webhook(url=f"https://edusearch-bot.onrender.com/{TOKEN}")
-    print(f"🌐 Webhook set to: https://edusearch-bot.onrender.com/{TOKEN}")
+    bot.set_webhook(url=f"https://edusearch-bot.onrender.com/{BOT_TOKEN}")
+    print(f"🌐 Webhook set to: https://edusearch-bot.onrender.com/{BOT_TOKEN}")
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
