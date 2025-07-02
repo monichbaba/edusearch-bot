@@ -4,10 +4,9 @@ from firebase_admin import credentials, firestore
 import telebot
 import re
 import os
-import threading
 from flask import Flask, request
 
-# 🔐 Environment Variables
+# 🔐 Setup
 TOKEN = os.environ.get("TOKEN")
 firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
 cred = credentials.Certificate(firebase_key)
@@ -70,7 +69,7 @@ def handle_group(m):
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
-# 🌐 Flask App for Webhook
+# 🌐 Flask Webhook
 app = Flask(__name__)
 
 @app.route('/')
