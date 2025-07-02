@@ -19,7 +19,7 @@ bot = telebot.TeleBot(TOKEN)
 
 STOPWORDS = {"the", "is", "a", "an", "of", "in", "to", "for", "and", "on", "with", "this", "that", "by", "at", "as"}
 
-# 🏷️ Tag Generator
+# Tag Generator
 def generate_tags(text):
     words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
     filtered = [w for w in words if w not in STOPWORDS]
@@ -27,12 +27,10 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# 🔐 Save + 📎 Tags (No Button)
+# Save + Reply with confirmation message
 def save_and_reply(chat_id, text, timestamp, is_group=False):
-    if text.lower().startswith("search "):  # ❌ Don't save search commands
+    if text.lower().startswith("search "):  # don't save search commands
         return
-
-    print("🔥 Trying to save:", text)
 
     try:
         db.collection("messages").document().set({
@@ -49,6 +47,7 @@ def save_and_reply(chat_id, text, timestamp, is_group=False):
 
     if is_group:
         bot.send_message(chat_id, f"🔔 Message saved.{tag_line}", disable_notification=True)
+        bot.send_message(chat_id, "✅ This is a test confirmation message to check bot response.")
     else:
         print(f"✅ Saved (channel): {text}")
 
@@ -63,7 +62,7 @@ def handle_channel(m):
     if m.text:
         save_and_reply(m.chat.id, m.text, m.date)
 
-# Group search command handler (no slash)
+# Group search handler
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text.lower().startswith("search "))
 def handle_search(m):
     keyword = m.text[7:].strip().lower()
@@ -88,7 +87,7 @@ def handle_search(m):
 
     bot.send_message(GROUP_CHAT_ID, reply)
 
-# Group message handler (normal posts)
+# Group message handler (normal messages)
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
 def handle_group(m):
     save_and_reply(m.chat.id, m.text, m.date, is_group=True)
