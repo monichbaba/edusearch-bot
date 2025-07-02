@@ -5,11 +5,10 @@ from firebase_admin import credentials, firestore
 from flask import Flask, request
 import telebot
 
-# ✅ Load env vars
+# ✅ Load environment
 BOT_TOKEN = os.getenv("BOT_TOKEN")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Optional, if needed
+WEBHOOK_URL = os.getenv("WEBHOOK_URL")  # Optional
 
-# ✅ Initialize Telegram bot
 bot = telebot.TeleBot(BOT_TOKEN)
 
 # ✅ Firebase setup
@@ -17,14 +16,12 @@ cred = credentials.Certificate("firebase.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-# ✅ Flask app
 app = Flask(__name__)
 
-# ✅ Extract #tags from message
+# ✅ Helpers
 def extract_tags(text):
     return re.findall(r"#\w+", text)
 
-# ✅ Firestore save
 def save_to_firestore(chat_id, user_name, message_text, tags):
     db.collection("messages").add({
         "chat_id": chat_id,
@@ -33,22 +30,18 @@ def save_to_firestore(chat_id, user_name, message_text, tags):
         "tags": tags,
     })
 
-# ✅ Count Firestore messages
 def count_messages():
     return len(list(db.collection("messages").stream()))
 
-# ✅ Get latest Firestore messages
 def get_latest_messages(n=5):
     docs = db.collection("messages").order_by("timestamp", direction=firestore.Query.DESCENDING).limit(n).stream()
     return [doc.to_dict() for doc in docs]
 
-# ✅ Clear all Firestore messages
 def clear_messages():
     docs = db.collection("messages").stream()
     for doc in docs:
         db.collection("messages").document(doc.id).delete()
 
-# ✅ Command parser
 def command_handler(text):
     text = text.strip().lower()
 
@@ -72,7 +65,7 @@ def command_handler(text):
     else:
         return "❓ Unknown command."
 
-# ✅ Main handler for all messages
+# ✅ Main handler
 @bot.message_handler(func=lambda message: True)
 def handle_message(message):
     chat_id = message.chat.id
@@ -82,7 +75,11 @@ def handle_message(message):
     if message_text.startswith("/"):
         response = command_handler(message_text)
         print(f"📤 Replying to command: {message_text}")
-        bot.send_message(chat_id, response)
+
+        if response:
+            bot.send_message(chat_id, response)
+        else:
+            print("⚠️ No response to send.")
         return
 
     tags = extract_tags(message_text)
@@ -100,12 +97,12 @@ def webhook():
     bot.process_new_updates([update])
     return "OK", 200
 
-# ✅ Render health check route
+# ✅ Render health check
 @app.route("/")
 def index():
     return "Bot is alive!"
 
-# ✅ Run with webhook setup
+# ✅ Start app and webhook
 if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"https://edusearch-bot.onrender.com/{BOT_TOKEN}")
