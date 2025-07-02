@@ -27,7 +27,7 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# ========== 🔐 Save + Debug Reply ==========
+# ========== 🔐 Save + Fixed Message Reply ==========
 def save_and_reply(chat_id, text, timestamp, is_group=False):
     try:
         print("🔥 Trying to save to Firestore:", text)
@@ -42,7 +42,7 @@ def save_and_reply(chat_id, text, timestamp, is_group=False):
         tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
 
         if is_group:
-            bot.send_message(chat_id, f"🔔 Message saved.{tag_line}", disable_notification=True)
+            bot.send_message(chat_id, f"🔔 Message saved:\n\n{text}{tag_line}", disable_notification=True)
         else:
             print(f"✅ Saved (channel): {text}")
 
