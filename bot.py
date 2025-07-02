@@ -69,6 +69,27 @@ def handle_group(m):
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
+# 🔍 /search command handler
+@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text.lower().startswith('search '))
+def handle_search(m):
+    keyword = m.text[7:].strip().lower()
+    print(f"🔍 Search triggered for: {keyword}")
+
+    results = db.collection("messages").stream()
+    matches = []
+    for doc in results:
+        data = doc.to_dict()
+        text = data.get("text", "")
+        if keyword in text.lower():
+            matches.append(text)
+
+    if matches:
+        reply = f"✅ {len(matches)} result(s) found:\n\n" + "\n\n".join(f"• {t[:200]}" for t in matches[:3])
+    else:
+        reply = f"❌ No results found for: `{keyword}`"
+
+    bot.send_message(m.chat.id, reply, parse_mode="Markdown", disable_notification=True)
+
 # 🌐 Flask Webhook
 app = Flask(__name__)
 
