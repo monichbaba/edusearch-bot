@@ -16,7 +16,7 @@ db = firestore.client()
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
 GROUP_CHAT_ID = -1002549002656
-OWNER_ID = 7644787073  # replace with your Telegram numeric user ID
+OWNER_ID = 7644787073  # ✅ Your Telegram user ID
 
 STOPWORDS = {
     "the", "is", "a", "an", "of", "in", "to", "for", "and", "on", "with",
@@ -44,34 +44,43 @@ def save_and_reply(chat_id, text, timestamp, is_group=False):
     if is_group:
         bot.send_message(chat_id, f"🔔 Message saved:\n\n{text}{tag_line}", disable_notification=True)
     else:
-        print(f"✅ Saved (channel): {text}")
+        print(f"✅ Saved: {text}")
 
 # /id command
 @bot.message_handler(commands=['id'])
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown")
 
-# 📢 Channel messages
+# Channel posts
 @bot.channel_post_handler(func=lambda m: True)
 def handle_channel(m):
     if m.text:
         save_and_reply(m.chat.id, m.text, m.date)
 
-# 👤 Only Owner messages in group saved
-@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.from_user.id == OWNER_ID and m.text)
-def handle_owner_group(m):
+# Group messages
+@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text)
+def handle_group(m):
     text = m.text.strip()
     if text.lower().startswith("search "):
         keyword = text.split("search ", 1)[1].strip().lower()
         results = []
+        seen = set()
         for doc in db.collection("messages").stream():
             content = doc.to_dict()
-            if keyword in content.get("text", "").lower():
-                results.append(content["text"])
-        reply = "🔎 Found:\n\n" + "\n\n---\n\n".join(results[:5]) if results else "❌ No results found."
+            content_text = content.get("text", "")
+            if keyword in content_text.lower() and content_text not in seen:
+                results.append(content_text)
+                seen.add(content_text)
+        if results:
+            reply = "🔎 Found:\n\n" + "\n\n---\n\n".join(results[:5])
+        else:
+            reply = "❌ No results found."
         bot.send_message(m.chat.id, reply)
     else:
-        save_and_reply(m.chat.id, text, m.date, is_group=True)
+        # ✅ Only allow OWNER messages (or forwarded from OWNER)
+        if (getattr(m, "from_user", None) and m.from_user.id == OWNER_ID) or \
+           (getattr(m, "forward_from", None) and m.forward_from.id == OWNER_ID):
+            save_and_reply(m.chat.id, text, m.date, is_group=True)
 
 # 📡 Webhook listener
 @app.route(f"/{TOKEN}", methods=["POST"])
@@ -84,7 +93,7 @@ def webhook():
 def home():
     return "Bot is alive!"
 
-# 🌐 Start app with webhook
+# 🌐 Run
 if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"https://edusearch-bot.onrender.com/{TOKEN}")
