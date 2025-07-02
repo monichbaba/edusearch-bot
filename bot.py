@@ -27,7 +27,7 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# ========== 🔐 Save + Fixed Message Reply ==========
+# ========== 🔐 Save + Full Debug Reply ==========
 def save_and_reply(chat_id, text, timestamp, is_group=False):
     try:
         print("🔥 Trying to save to Firestore:", text)
