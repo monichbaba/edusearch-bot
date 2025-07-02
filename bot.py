@@ -19,7 +19,7 @@ bot = telebot.TeleBot(TOKEN)
 
 STOPWORDS = {"the", "is", "a", "an", "of", "in", "to", "for", "and", "on", "with", "this", "that", "by", "at", "as"}
 
-# Tag Generator
+# 🏷️ Tag Generator
 def generate_tags(text):
     words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
     filtered = [w for w in words if w not in STOPWORDS]
@@ -27,20 +27,28 @@ def generate_tags(text):
     top5 = unique[:5]
     return " ".join(f"#{w}" for w in top5)
 
-# Save + Reply with confirmation message
+# 🔐 Save + Trace Firestore Status
 def save_and_reply(chat_id, text, timestamp, is_group=False):
-    if text.lower().startswith("search "):  # don't save search commands
+    if text.lower().startswith("search "):
+        print("🚫 Skipping Firestore save (search command)")
         return
 
+    print(f"🔥 Trying to save to Firestore → {text}")
+
     try:
-        db.collection("messages").document().set({
+        doc_ref = db.collection("messages").document()
+        doc_ref.set({
             'chat_id': chat_id,
             'text': text,
             'timestamp': timestamp
         })
-        print("✅ Saved to Firestore")
+        print(f"✅ Firestore write success: {doc_ref.id}")
     except Exception as e:
-        print("❌ Firestore Save Error:", e)
+        error_msg = f"❌ Firestore Save Failed: {e}"
+        print(error_msg)
+        if is_group:
+            bot.send_message(chat_id, error_msg)
+        return
 
     tags = generate_tags(text)
     tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
@@ -51,18 +59,18 @@ def save_and_reply(chat_id, text, timestamp, is_group=False):
     else:
         print(f"✅ Saved (channel): {text}")
 
-# /id command
+# 🔘 /id command
 @bot.message_handler(commands=['id'])
 def send_id(message):
     bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown", disable_notification=True)
 
-# Channel post handler
+# 🔘 Channel post handler
 @bot.channel_post_handler(func=lambda m: True)
 def handle_channel(m):
     if m.text:
         save_and_reply(m.chat.id, m.text, m.date)
 
-# Group search handler
+# 🔍 Search command like "search xyz"
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text.lower().startswith("search "))
 def handle_search(m):
     keyword = m.text[7:].strip().lower()
@@ -87,16 +95,16 @@ def handle_search(m):
 
     bot.send_message(GROUP_CHAT_ID, reply)
 
-# Group message handler (normal messages)
+# 📨 Group message handler (normal message save)
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
 def handle_group(m):
     save_and_reply(m.chat.id, m.text, m.date, is_group=True)
 
-# Run bot thread
+# 🔁 Bot polling thread
 def run_bot():
     bot.infinity_polling()
 
-# Flask keepalive
+# 🌐 Flask keepalive
 app = Flask(__name__)
 @app.route('/')
 def home(): return "Bot is alive!"
