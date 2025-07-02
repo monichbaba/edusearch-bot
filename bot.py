@@ -29,6 +29,9 @@ def generate_tags(text):
 
 # 🔐 Save + 📎 Tags (No Button)
 def save_and_reply(chat_id, text, timestamp, is_group=False):
+    if text.lower().startswith("search "):  # ❌ Don't save search commands
+        return
+
     print("🔥 Trying to save:", text)
 
     try:
@@ -60,7 +63,32 @@ def handle_channel(m):
     if m.text:
         save_and_reply(m.chat.id, m.text, m.date)
 
-# Group message handler (no command)
+# Group search command handler (no slash)
+@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text.lower().startswith("search "))
+def handle_search(m):
+    keyword = m.text[7:].strip().lower()
+    print("🔍 Searching for:", keyword)
+
+    results = []
+    try:
+        docs = db.collection("messages").stream()
+        for doc in docs:
+            data = doc.to_dict()
+            text = data.get('text', '').lower()
+            if keyword in text:
+                results.append(data['text'])
+    except Exception as e:
+        bot.send_message(GROUP_CHAT_ID, f"❌ Search failed: {e}")
+        return
+
+    if results:
+        reply = "🔍 Results:\n" + "\n\n".join(f"• {r}" for r in results[:5])
+    else:
+        reply = "❌ No results found."
+
+    bot.send_message(GROUP_CHAT_ID, reply)
+
+# Group message handler (normal posts)
 @bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text and not m.text.startswith('/'))
 def handle_group(m):
     save_and_reply(m.chat.id, m.text, m.date, is_group=True)
