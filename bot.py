@@ -1,101 +1,85 @@
-import json
-import firebase_admin
-from firebase_admin import credentials, firestore
-import telebot
-import re
 import os
+import json
+import telebot
 from flask import Flask, request
+from threading import Timer
+from time import sleep
 
-# 🔐 Setup
-TOKEN = os.environ.get("TOKEN")
-firebase_key = json.loads(os.environ.get("FIREBASE_KEY"))
-cred = credentials.Certificate(firebase_key)
-firebase_admin.initialize_app(cred)
-db = firestore.client()
-
+# 🔐 Config
+TOKEN = os.environ.get("TOKEN") or "YOUR_BOT_TOKEN"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
-GROUP_CHAT_ID = -1002549002656
-OWNER_ID = 7644787073  # ✅ Your Telegram user ID
+GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID", -1002549002656))  # Replace with your group ID
 
-STOPWORDS = {
-    "the", "is", "a", "an", "of", "in", "to", "for", "and", "on", "with",
-    "this", "that", "by", "at", "as"
-}
+# 📦 Poll tracker
+active_polls = {}  # poll_id → {correct, responses, qno}
 
-# 🏷️ Tag Generator
-def generate_tags(text):
-    words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
-    filtered = [w for w in words if w not in STOPWORDS]
-    unique = list(dict.fromkeys(filtered))
-    return " ".join(f"#{w}" for w in unique[:5])
-
-# 💾 Save message + reply
-def save_and_reply(chat_id, text, timestamp, is_group=False):
-    if not text:
+# ✅ /start_mcq qset1
+@bot.message_handler(commands=['start_mcq'])
+def start_mcq(message):
+    args = message.text.split()
+    if len(args) < 2:
+        bot.reply_to(message, "❌ Usage: /start_mcq qset1")
         return
-    db.collection("messages").document().set({
-        'chat_id': chat_id,
-        'text': text,
-        'timestamp': timestamp
-    })
-    tags = generate_tags(text)
-    tag_line = f"\n\n📎 Tags: {tags}" if tags else ""
-    if is_group:
-        bot.send_message(chat_id, f"🔔 Message saved:\n\n{text}{tag_line}", disable_notification=True)
-    else:
-        print(f"✅ Saved: {text}")
 
-# /id command
-@bot.message_handler(commands=['id'])
-def send_id(message):
-    bot.send_message(message.chat.id, f"Chat ID: `{message.chat.id}`", parse_mode="Markdown")
+    filename = f"mcqs/{args[1]}.json"
+    if not os.path.exists(filename):
+        bot.reply_to(message, f"❌ File not found: {filename}")
+        return
 
-# Channel posts
-@bot.channel_post_handler(func=lambda m: True)
-def handle_channel(m):
-    if m.text:
-        save_and_reply(m.chat.id, m.text, m.date)
+    with open(filename, "r", encoding="utf-8") as f:
+        questions = json.load(f)
 
-# Group messages
-@bot.message_handler(func=lambda m: m.chat.id == GROUP_CHAT_ID and m.text)
-def handle_group(m):
-    text = m.text.strip()
-    if text.lower().startswith("search "):
-        keyword = text.split("search ", 1)[1].strip().lower()
-        results = []
-        seen = set()
-        for doc in db.collection("messages").stream():
-            content = doc.to_dict()
-            content_text = content.get("text", "")
-            if keyword in content_text.lower() and content_text not in seen:
-                results.append(content_text)
-                seen.add(content_text)
-        if results:
-            reply = "🔎 Found:\n\n" + "\n\n---\n\n".join(results[:5])
-        else:
-            reply = "❌ No results found."
-        bot.send_message(m.chat.id, reply)
-    else:
-        # ✅ Only allow OWNER messages (or forwarded from OWNER)
-        if (getattr(m, "from_user", None) and m.from_user.id == OWNER_ID) or \
-           (getattr(m, "forward_from", None) and m.forward_from.id == OWNER_ID):
-            save_and_reply(m.chat.id, text, m.date, is_group=True)
+    for i, q in enumerate(questions, start=1):
+        sent = bot.send_poll(
+            chat_id=GROUP_CHAT_ID,
+            question=f"Q{i}: {q['question']}",
+            options=q['options'],
+            is_anonymous=False,
+            allows_multiple_answers=False
+        )
+        active_polls[sent.poll.id] = {
+            "correct": q["answer_index"],
+            "responses": {},
+            "qno": i
+        }
+        Timer(60, lambda pid=sent.poll.id: show_result(pid)).start()
+        sleep(65)
 
-# 📡 Webhook listener
+# 🧠 Answer tracking
+@bot.poll_answer_handler()
+def handle_poll_answer(poll_answer):
+    pid = poll_answer.poll_id
+    uid = poll_answer.user.id
+    selected = poll_answer.option_ids[0]
+    if pid in active_polls:
+        active_polls[pid]["responses"][uid] = selected
+
+# ✅ Show result after 1 min
+def show_result(pid):
+    if pid not in active_polls:
+        return
+    poll = active_polls[pid]
+    correct = poll["correct"]
+    count = sum(1 for a in poll["responses"].values() if a == correct)
+    bot.send_message(GROUP_CHAT_ID, f"✅ Q{poll['qno']} Result: {count} sahab ne sahi jawab diya.")
+    del active_polls[pid]
+
+# 🛠️ Webhook route for Render
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = telebot.types.Update.de_json(request.stream.read().decode("utf-8"))
     bot.process_new_updates([update])
     return "OK", 200
 
+# 🔁 Health check
 @app.route("/")
-def home():
-    return "Bot is alive!"
+def index():
+    return "MCQ Bot Running"
 
-# 🌐 Run
+# 🚀 Start webhook server
 if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"https://edusearch-bot.onrender.com/{TOKEN}")
-    print(f"🌐 Webhook set to: https://edusearch-bot.onrender.com/{TOKEN}")
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    port = int(os.environ.get("PORT", 10000))
+    app.run(host="0.0.0.0", port=port)
