@@ -9,12 +9,12 @@ from time import sleep
 TOKEN = os.environ.get("TOKEN") or "YOUR_BOT_TOKEN"
 bot = telebot.TeleBot(TOKEN)
 app = Flask(__name__)
-GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID", -1002549002656))  # Replace with your group ID
+GROUP_CHAT_ID = int(os.environ.get("GROUP_CHAT_ID", -1002549002656))  # Replace with real group ID
 
-# 📦 Poll tracker
+# 🔁 Poll Tracker
 active_polls = {}  # poll_id → {correct, responses, qno}
 
-# ✅ /start_mcq qset1
+# 🧭 /start_mcq qset1
 @bot.message_handler(commands=['start_mcq'])
 def start_mcq(message):
     args = message.text.split()
@@ -31,9 +31,10 @@ def start_mcq(message):
         questions = json.load(f)
 
     for i, q in enumerate(questions, start=1):
+        question_text = f"🧭 Q{i}:\n{q['question']}"
         sent = bot.send_poll(
             chat_id=GROUP_CHAT_ID,
-            question=f"Q{i}: {q['question']}",
+            question=question_text,
             options=q['options'],
             is_anonymous=False,
             allows_multiple_answers=False
@@ -43,10 +44,10 @@ def start_mcq(message):
             "responses": {},
             "qno": i
         }
-        Timer(60, lambda pid=sent.poll.id: show_result(pid)).start()
-        sleep(65)
+        Timer(8, lambda pid=sent.poll.id: show_result(pid)).start()
+        sleep(10)
 
-# 🧠 Answer tracking
+# 🧠 Store Answer
 @bot.poll_answer_handler()
 def handle_poll_answer(poll_answer):
     pid = poll_answer.poll_id
@@ -55,29 +56,28 @@ def handle_poll_answer(poll_answer):
     if pid in active_polls:
         active_polls[pid]["responses"][uid] = selected
 
-# ✅ Show result after 1 min
+# 📢 Show Result
 def show_result(pid):
     if pid not in active_polls:
         return
     poll = active_polls[pid]
     correct = poll["correct"]
-    count = sum(1 for a in poll["responses"].values() if a == correct)
-    bot.send_message(GROUP_CHAT_ID, f"✅ Q{poll['qno']} Result: {count} sahab ne sahi jawab diya.")
+    total = sum(1 for a in poll["responses"].values() if a == correct)
+    bot.send_message(GROUP_CHAT_ID, f"✅ Q{poll['qno']} Result: {total} sahab ne sahi jawab diya.")
     del active_polls[pid]
 
-# 🛠️ Webhook route for Render
+# 🌐 Webhook Routes
 @app.route(f"/{TOKEN}", methods=["POST"])
 def webhook():
     update = telebot.types.Update.de_json(request.stream.read().decode("utf-8"))
     bot.process_new_updates([update])
     return "OK", 200
 
-# 🔁 Health check
 @app.route("/")
 def index():
-    return "MCQ Bot Running"
+    return "MCQ Bot is live!"
 
-# 🚀 Start webhook server
+# 🚀 Start Server
 if __name__ == "__main__":
     bot.remove_webhook()
     bot.set_webhook(url=f"https://edusearch-bot.onrender.com/{TOKEN}")
