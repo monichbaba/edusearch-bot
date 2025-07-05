@@ -1,0 +1,32 @@
+[
+  {
+    "q": "विकास का क्या अर्थ है?\nWhat does the term 'development' mean?",
+    "options": [
+      "सभी के लिए एक ही प्रकार की प्रगति (Same progress for all)",
+      "केवल आर्थिक वृद्धि (Only economic growth)",
+      "विभिन्न लोगों की विभिन्न आकांक्षाओं की पूर्ति (Fulfillment of different people's aspirations)",
+      "केवल शिक्षा और स्वास्थ्य (Only education and health)"
+    ],
+    "answer_index": 2
+  },
+  {
+    "q": "भारत की अर्थव्यवस्था का कौन-सा क्षेत्र सबसे अधिक लोगों को रोज़गार देता है?\nWhich sector of the Indian economy employs the most people?",
+    "options": [
+      "प्राथमिक क्षेत्र (Primary sector)",
+      "द्वितीयक क्षेत्र (Secondary sector)",
+      "तृतीयक क्षेत्र (Tertiary sector)",
+      "सूचना प्रौद्योगिकी क्षेत्र (IT sector)"
+    ],
+    "answer_index": 0
+  },
+  {
+    "q": "बार्टर प्रणाली की मुख्य कमी क्या थी?\nWhat was the major drawback of the barter system?",
+    "options": [
+      "मुद्रा की कमी (Lack of money)",
+      "द्वैध चाह की आवश्यकता (Need for double coincidence of wants)",
+      "उधार की अनुपस्थिति (No credit system)",
+      "सरकारी नियंत्रण की कमी (Lack of government control)"
+    ],
+    "answer_index": 1
+  }
+]
