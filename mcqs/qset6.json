@@ -1,33 +1,102 @@
 [
   {
-    "q": "विकास का क्या अर्थ है?\nWhat does the term 'development' mean?",
+    "q": "भूमि के कटाव को रोकने के लिए कौन-सी विधि उपयुक्त है?\nWhich is the most suitable method to prevent soil erosion?",
     "options": [
-      "सभी के लिए एक ही प्रकार की प्रगति (Same progress for all)",
-      "केवल आर्थिक वृद्धि (Only economic growth)",
-      "विभिन्न लोगों की विभिन्न आकांक्षाओं की पूर्ति (Fulfillment of different people's aspirations)",
-      "केवल शिक्षा और स्वास्थ्य (Only education and health)"
+      "खनन (Mining)",
+      "वनोपज संग्रहण (Forest harvesting)",
+      "सीढ़ीदार खेती (Terrace farming)",
+      "बाढ़ नियंत्रण (Flood control)"
     ],
     "answer_index": 2
   },
   {
-    "q": "भारत की अर्थव्यवस्था का कौन-सा क्षेत्र सबसे अधिक लोगों को रोज़गार देता है?\nWhich sector of the Indian economy employs the most people?",
+    "q": "कौन-सी गैस ग्रीनहाउस प्रभाव के लिए ज़िम्मेदार है?\nWhich gas is primarily responsible for the greenhouse effect?",
     "options": [
-      "प्राथमिक क्षेत्र (Primary sector)",
-      "द्वितीयक क्षेत्र (Secondary sector)",
-      "तृतीयक क्षेत्र (Tertiary sector)",
-      "सूचना प्रौद्योगिकी क्षेत्र (IT sector)"
+      "ऑक्सीजन (Oxygen)",
+      "नाइट्रोजन (Nitrogen)",
+      "कार्बन डाइऑक्साइड (Carbon Dioxide)",
+      "हाइड्रोजन (Hydrogen)"
+    ],
+    "answer_index": 2
+  },
+  {
+    "q": "कृषि की वह विधि जिसमें एक ही भूमि पर विभिन्न प्रकार की फसलें लगाई जाती हैं:\nWhich method involves growing multiple crops on the same land?",
+    "options": [
+      "एकल फसल प्रणाली (Monoculture)",
+      "घूमती फसलें (Crop rotation)",
+      "मिश्रित कृषि (Mixed farming)",
+      "झूम खेती (Jhum cultivation)"
+    ],
+    "answer_index": 2
+  },
+  {
+    "q": "कौन-सा संसाधन नवीकरणीय नहीं है?\nWhich of the following is a non-renewable resource?",
+    "options": [
+      "सौर ऊर्जा (Solar energy)",
+      "पवन ऊर्जा (Wind energy)",
+      "कोयला (Coal)",
+      "जल ऊर्जा (Hydro power)"
+    ],
+    "answer_index": 2
+  },
+  {
+    "q": "किस महाद्वीप में सबसे घने वर्षावन पाए जाते हैं?\nWhich continent has the densest rainforests?",
+    "options": [
+      "एशिया (Asia)",
+      "अफ्रीका (Africa)",
+      "दक्षिण अमेरिका (South America)",
+      "ऑस्ट्रेलिया (Australia)"
+    ],
+    "answer_index": 2
+  },
+  {
+    "q": "खनिज तेल भारत में सबसे अधिक कहाँ पाया जाता है?\nWhere is mineral oil most abundantly found in India?",
+    "options": [
+      "गुजरात (Gujarat)",
+      "राजस्थान (Rajasthan)",
+      "असम (Assam)",
+      "महाराष्ट्र (Maharashtra)"
     ],
     "answer_index": 0
   },
   {
-    "q": "बार्टर प्रणाली की मुख्य कमी क्या थी?\nWhat was the major drawback of the barter system?",
+    "q": "कौन-सी परत में मौसम संबंधित घटनाएँ घटती हैं?\nIn which atmospheric layer do weather phenomena occur?",
     "options": [
-      "मुद्रा की कमी (Lack of money)",
-      "द्वैध चाह की आवश्यकता (Need for double coincidence of wants)",
-      "उधार की अनुपस्थिति (No credit system)",
-      "सरकारी नियंत्रण की कमी (Lack of government control)"
+      "आयनमंडल (Ionosphere)",
+      "क्षोभमंडल (Troposphere)",
+      "समतापमंडल (Stratosphere)",
+      "बहिर्मंडल (Exosphere)"
     ],
     "answer_index": 1
+  },
+  {
+    "q": "‘हिमालय’ किस प्रकार की पर्वत श्रृंखला है?\nHimalayas belong to which type of mountain range?",
+    "options": [
+      "प्राचीन पर्वत (Old fold mountains)",
+      "ज्वालामुखी पर्वत (Volcanic mountains)",
+      "नवीन वलित पर्वत (Young fold mountains)",
+      "ब्लॉक पर्वत (Block mountains)"
+    ],
+    "answer_index": 2
+  },
+  {
+    "q": "किसी क्षेत्र के 'पारिस्थितिकी तंत्र' में क्या शामिल होता है?\nWhat does an ecosystem include?",
+    "options": [
+      "केवल जलवायु (Only climate)",
+      "केवल पेड़-पौधे (Only plants)",
+      "केवल जीवित जीव (Only living beings)",
+      "जीवित और निर्जीव दोनों घटक (Both living and non-living components)"
+    ],
+    "answer_index": 3
+  },
+  {
+    "q": "भारत में किस राज्य की जनसंख्या सबसे अधिक है?\nWhich state has the highest population in India?",
+    "options": [
+      "बिहार (Bihar)",
+      "पश्चिम बंगाल (West Bengal)",
+      "उत्तर प्रदेश (Uttar Pradesh)",
+      "महाराष्ट्र (Maharashtra)"
+    ],
+    "answer_index": 2
   }
 ]
-
