@@ -4,6 +4,7 @@ import telebot
 from flask import Flask, request
 from threading import Timer
 from time import sleep
+from datetime import datetime
 
 # 🔐 Config
 TOKEN = os.environ.get("TOKEN") or "YOUR_BOT_TOKEN"
@@ -30,8 +31,10 @@ def start_mcq(message):
     with open(filename, "r", encoding="utf-8") as f:
         questions = json.load(f)
 
+    sent_poll_ids = []  # Store poll message IDs for later deletion
+
     for i, q in enumerate(questions, start=1):
-        question_text = f"🧭 Q{i}:\n{q['question']}"
+        question_text = f"🧭 Q{i}:\n{q['q']}"
         sent = bot.send_poll(
             chat_id=GROUP_CHAT_ID,
             question=question_text,
@@ -39,13 +42,30 @@ def start_mcq(message):
             is_anonymous=False,
             allows_multiple_answers=False
         )
+        sent_poll_ids.append(sent.message_id)
+
         active_polls[sent.poll.id] = {
             "correct": q["answer_index"],
             "responses": {},
             "qno": i
         }
+
         Timer(8, lambda pid=sent.poll.id: show_result(pid)).start()
         sleep(10)
+
+    # ⏲️ Auto delete all polls and send final message after 60 mins
+    def delete_all_polls():
+        for mid in sent_poll_ids:
+            try:
+                bot.delete_message(chat_id=GROUP_CHAT_ID, message_id=mid)
+            except:
+                pass
+
+        now = datetime.now().strftime("%I:%M %p").lstrip("0")
+        msg = f"🧠 Test completed at {now}. Come tomorrow at 8:00 PM."
+        bot.send_message(GROUP_CHAT_ID, msg)
+
+    Timer(3600, delete_all_polls).start()
 
 # 🧠 Poll Response Tracker
 @bot.poll_answer_handler()
@@ -56,7 +76,7 @@ def handle_poll_answer(poll_answer):
     if pid in active_polls:
         active_polls[pid]["responses"][uid] = selected
 
-# 📊 Result Formatter
+# 📊 Result Formatter (❌ Only Wrong Users)
 def show_result(pid):
     if pid not in active_polls:
         return
@@ -64,7 +84,6 @@ def show_result(pid):
     correct = poll["correct"]
     responses = poll["responses"]
 
-    sahi = []
     galat = []
 
     for uid, selected in responses.items():
@@ -74,19 +93,14 @@ def show_result(pid):
         except:
             name = f"user_{uid}"
 
-        if selected == correct:
-            sahi.append(name)
-        else:
+        if selected != correct:
             galat.append(name)
 
     qno = poll['qno']
-    msg = f"Q{qno} ➤\n"
     if galat:
-        msg += f"❌ " + ", ".join(galat) + "\n"
-    if sahi:
-        msg += f"✅ " + ", ".join(sahi)
+        msg = f"Q{qno} ➤\n❌ " + ", ".join(galat)
+        bot.send_message(GROUP_CHAT_ID, msg)
 
-    bot.send_message(GROUP_CHAT_ID, msg)
     del active_polls[pid]
 
 # 🌐 Webhook Setup
